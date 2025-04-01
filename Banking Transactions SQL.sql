@@ -51,6 +51,48 @@ WHERE transaction_type = "Debit"
 GROUP BY Customer_ID, Income, Spending_Score
 ORDER BY Spending_to_IncomeRatio;
 
+-- Total Revenue and High Spenders Contribution
+WITH Customer_Spend AS (
+		SELECT
+			Customer_ID,
+            SUM(Transaction_Amount) AS Total_Spent
+		FROM banking_data.transactions
+        GROUP BY Customer_ID),
+Spending_Summary AS (
+		SELECT
+			COUNT(DISTINCT Customer_ID) AS Total_Customers,
+            COUNT(CASE WHEN Total_Spent > 4000 THEN Customer_ID END) AS High_Spenders,
+            SUM(Total_Spent) AS Total_Revenue,
+            SUM(CASE WHEN Total_Spent > 4000 THEN Total_Spent ELSE 0 END) AS High_Spenders_Rev
+		FROM Customer_Spend)
+        
+SELECT 	Total_Customers,
+		High_Spenders,
+        ROUND(High_Spenders * 100 / Total_Customers, 2) AS High_SpendersPerc,
+        ROUND(High_Spenders_Rev * 100 / Total_Revenue, 2) AS Revenue_Contribution
+FROM Spending_Summary;
+
+-- Total Revenue and Medium Spenders Contribution
+WITH Customer_Spend AS (
+		SELECT
+			Customer_ID,
+            SUM(Transaction_Amount) AS Total_Spent
+		FROM banking_data.transactions
+        GROUP BY Customer_ID),
+Spending_Summary AS (
+		SELECT
+			COUNT(DISTINCT Customer_ID) AS Total_Customers,
+            COUNT(CASE WHEN Total_Spent BETWEEN 1500 AND 4000 THEN Customer_ID END) AS medium_Spenders,
+            SUM(Total_Spent) AS Total_Revenue,
+            SUM(CASE WHEN Total_Spent BETWEEN 1500 AND 4000 THEN Total_Spent ELSE 0 END) AS medium_Spenders_Rev
+		FROM Customer_Spend)
+        
+SELECT 	Total_Customers,
+		medium_Spenders,
+        ROUND(medium_Spenders * 100 / Total_Customers, 2) AS medium_SpendersPerc,
+        ROUND(medium_Spenders_Rev * 100 / Total_Revenue, 2) AS Revenue_Contribution
+FROM Spending_Summary;
+
 -- Customer Segment
 WITH customer_spend AS (
 		SELECT
@@ -71,6 +113,37 @@ SELECT Customer_ID,
             Total_Spent
 FROM customer_spend
 ORDER BY total_spent DESC;
+
+-- Revenue Contributions
+WITH customer_spend AS (
+    SELECT 
+        Customer_ID,
+        SUM(Transaction_Amount) AS Total_Spent
+    FROM banking_data.transactions
+    GROUP BY Customer_ID
+),
+customer_segments AS (
+    SELECT 
+        Customer_ID,
+        Total_Spent,
+        CASE 
+            WHEN Total_Spent > 4000 THEN 'High Spender'
+            WHEN Total_Spent BETWEEN 1500 AND 4000 THEN 'Medium Spender'
+            ELSE 'Low Spender'
+        END AS Customer_Segment
+    FROM customer_spend
+),
+segment_revenue AS (
+    SELECT 
+        Customer_Segment,
+        COUNT(Customer_ID) AS Total_Customers,
+        ROUND(SUM(Total_Spent), 2) AS Segment_Revenue,
+        ROUND((SUM(Total_Spent) * 1.0) / (SELECT SUM(Total_Spent) FROM customer_spend), 4) AS Revenue_Contribution
+    FROM customer_segments
+    GROUP BY Customer_Segment
+)
+SELECT * FROM segment_revenue
+ORDER BY Revenue_Contribution DESC;
 
 -- Approved Loans VS Rejected Loans
 -- Method 1
